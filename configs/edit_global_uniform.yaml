@@ -1,0 +1,5 @@
+# Global edit with one adapter strength for every token at every step. No region or 2D mask is read and
+# no orientation search runs. For a global edit with the local schedule, use edit.yaml with a region
+# enclosing the whole object (sap3d-edit --global).
+mode: uniform
+uniform_strength: 0.5

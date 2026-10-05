@@ -1,0 +1,12 @@
+name: sap3d
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  # CUDA 12.4 compiler, needed only to build diso for torch 2.5.1
+  - cuda-nvcc=12.4
+  - cuda-cudart-dev=12.4
+  - cuda-version=12.4
+  - pip:
+    - -r requirements/torch251.txt

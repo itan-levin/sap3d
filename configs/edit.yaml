@@ -1,0 +1,78 @@
+# Local-edit configuration. Every value here equals the built-in default, so this file only documents
+# them; a configuration file may name any subset of these keys.
+
+# local: per-token adapter schedule over a 3D region. uniform: one adapter strength for every token.
+mode: local
+# Adapter strength for every token in uniform mode.
+uniform_strength: 0.5
+
+sampler:
+  # Euler steps over sigmas linspace(0, 1, num_steps); the last step has zero length.
+  num_steps: 30
+  # Classifier-free guidance scale.
+  guidance_scale: 5.0
+  # Seed of the CUDA generator drawing the initial noise (the preliminary pass uses the same noise).
+  seed: 43
+  # Resolution of the grid the decoded surface is extracted from.
+  octree_resolution: 384
+  # Grid points decoded per chunk.
+  num_chunks: 20000
+
+schedule:
+  # Adapter strength for every token before masking begins, and for the preliminary pass.
+  pre_mask_strength: 0.7064
+  # Strength outside the region (and for the condition token) while the mask applies.
+  outside_strength: 1.0
+  # Strength inside the region while the mask applies, and for every token once the adapter is dropped.
+  inside_strength: 0.0
+  # First step the per-token mask applies; the region is built by the probes from this step on.
+  mask_from_step: 8
+  # First step every token takes inside_strength.
+  drop_from_step: 16
+
+probe_3d:
+  # Query points drawn uniformly inside the region's component hulls.
+  query_points: 1000
+  # Seed of the local generator drawing them.
+  query_seed: 0
+  # Multiplier on the knee threshold of the decoder cross-attention rows.
+  knee_factor: 0.8344
+
+probe_2d:
+  # DiT cross-attention (layer, head) pairs averaged for the 2D probe.
+  heads:
+  - [15, 6]
+  - [14, 0]
+  # Fraction of a DINOv2 patch the 2D mask must cover for the patch to be read.
+  coverage: 0.5
+  # Multiplier on the knee threshold of the patch rows.
+  knee_factor: 2.5394
+
+knee:
+  # Width of the moving average applied to each sorted score row before the bend is located.
+  smoothing_width: 51
+  # Kneedle sensitivity.
+  sensitivity: 1.0
+
+pose:
+  # Quarter-turn search on the preliminary mesh (turns the region) and on the output (turns the mesh).
+  enabled: true
+  # How much better than no turn the best turn must score for the region to be turned.
+  region_min_improvement: 1.5
+  # The same bar for turning the output mesh.
+  output_min_improvement: 1.5
+  # Surface points sampled per mesh for the search.
+  surface_points: 200000
+  # Seed of that sample.
+  sample_seed: 11
+
+conditioning:
+  # Applied only to an edited view without real transparency.
+  # Alpha at or below this lies outside the crop box of the object.
+  crop_alpha_min: 127
+  # Luminance (0-255) below which a pixel cannot be the white background.
+  near_white_luma: 240.0
+  # Smallest connected run of such pixels raised to opaque.
+  min_component_px: 64
+  # Pixel connectivity of those runs (4 or 8).
+  connectivity: 4

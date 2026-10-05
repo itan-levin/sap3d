@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sap3d"
+version = "0.1.0"
+description = "Localized 3D editing with personalized adapters on Hunyuan3D-2.1"
+readme = "README.md"
+requires-python = ">=3.10"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Itan Levin" }]
+# Dependencies are pinned per PyTorch version in requirements/.
+dependencies = []
+
+[project.scripts]
+sap3d-edit = "sap3d.edit.cli:main"
+
+[tool.setuptools.packages.find]
+where = [".", "third_party/hy3dshape"]
+include = ["sap3d*", "hy3dshape*"]

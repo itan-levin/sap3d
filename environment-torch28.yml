@@ -1,0 +1,12 @@
+name: sap3d-torch28
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  # CUDA 12.8 compiler, needed only to build diso for torch 2.8
+  - cuda-nvcc=12.8
+  - cuda-cudart-dev=12.8
+  - cuda-version=12.8
+  - pip:
+    - -r requirements/torch28.txt
