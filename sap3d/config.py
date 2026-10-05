@@ -1,4 +1,4 @@
-"""Edit-stage settings: frozen dataclasses holding the default values, and a YAML loader.
+"""Edit- and texture-stage settings: frozen dataclasses holding the default values, and YAML loaders.
 
 A YAML file names any subset of the settings by section; every key it names must exist, so a misspelled
 setting fails instead of silently leaving the default in force.
@@ -82,6 +82,17 @@ class EditConfig:
     knee: KneeConfig = field(default_factory=KneeConfig)
     pose: PoseConfig = field(default_factory=PoseConfig)
     conditioning: ConditioningConfig = field(default_factory=ConditioningConfig)
+
+
+@dataclass(frozen=True)
+class TextureConfig:
+    atlas_size: int = 2048
+    target_faces: int = 40_000
+    normal_gate: bool = True
+    boundary_margin: float = 0.02
+    feather_width: float = 0.01
+    color_fit: bool = True
+    realesrgan_ckpt: str = ""
 
 
 def _coerce(name: str, value, default):
@@ -185,3 +196,26 @@ def to_dict(cfg: EditConfig) -> dict:
 
 def dump_config(cfg: EditConfig) -> str:
     return yaml.safe_dump(to_dict(cfg), sort_keys=False, default_flow_style=False)
+
+
+# hy3dpaint decimates anything above this many faces itself, so a larger budget would paint a different
+# surface from the one the atlas is baked on.
+PAINT_FACE_BUDGET = 40_000
+
+
+def validate_texture(cfg: TextureConfig) -> TextureConfig:
+    if not 1 <= cfg.target_faces <= PAINT_FACE_BUDGET:
+        raise ValueError(f"target_faces must lie in [1, {PAINT_FACE_BUDGET}], got {cfg.target_faces}")
+    if cfg.atlas_size < 16:
+        raise ValueError(f"atlas_size must be at least 16, got {cfg.atlas_size}")
+    if not cfg.feather_width > 0 or cfg.boundary_margin < 0:
+        raise ValueError(f"feather_width must be positive and boundary_margin non-negative, got "
+                         f"{cfg.feather_width} and {cfg.boundary_margin}")
+    return cfg
+
+
+def load_texture_config(path=None) -> TextureConfig:
+    """The default texture settings, overridden by the YAML file at `path` when one is given."""
+    if path is None:
+        return validate_texture(TextureConfig())
+    return validate_texture(_build(TextureConfig, yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}))

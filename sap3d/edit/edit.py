@@ -9,11 +9,15 @@ pass is skipped.
 """
 
 import dataclasses
+import json
 import time
+from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 from .. import conditioning, distance, frames, orient
+from ..config import to_dict
 from ..region import place_components, points_inside, sample_volume_points
 from .patches import mask_patch_tokens, processor_framing
 from .sampler import decode, sample_local, sample_uniform
@@ -111,3 +115,26 @@ def steps_to_npz(steps: list) -> dict:
         for key in ("points", "patches", "region"):
             arrays[f"step_{s['step']:02d}_{key}"] = np.asarray(s[key], dtype=np.int64)
     return arrays
+
+
+OUTPUT_FILES = ("edit.glb", "edit.json", "regions.npz", "mask_2d.png")
+
+
+def clear_outputs(out_dir) -> None:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in OUTPUT_FILES:
+        (out_dir / name).unlink(missing_ok=True)
+
+
+def save_outputs(out_dir, mesh, record: dict, steps: list, cfg, *, source, edited_view, adapter,
+                 projected_mask=None) -> None:
+    """Write `edit.glb`, `regions.npz` (local edits), `mask_2d.png` (projected masks) and, last, `edit.json`."""
+    out_dir = Path(out_dir)
+    mesh.export(out_dir / "edit.glb")
+    if projected_mask is not None:
+        Image.fromarray(projected_mask.astype(np.uint8) * 255).save(out_dir / "mask_2d.png")
+    if steps:
+        np.savez_compressed(out_dir / "regions.npz", **steps_to_npz(steps))
+    record.update(source=str(source), edited_view=str(edited_view), adapter=str(adapter), settings=to_dict(cfg))
+    (out_dir / "edit.json").write_text(json.dumps(record, indent=1), encoding="utf-8")

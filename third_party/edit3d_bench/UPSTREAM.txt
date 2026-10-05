@@ -1,0 +1,4 @@
+Edit3D-Bench evaluation code, copied byte for byte from the VoxHammer repository:
+  https://github.com/Nelipot-Lee/VoxHammer
+  commit f33cd965388faf4bd89252068cac5a0b8030e7de, directory Edit3D-Bench/
+LICENSE is the VoxHammer repository's MIT license. No file here is changed.

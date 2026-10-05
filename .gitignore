@@ -4,3 +4,5 @@ __pycache__/
 build/
 dist/
 outputs/
+*.so
+third_party/hy3dpaint/ckpt/

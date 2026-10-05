@@ -18,17 +18,14 @@ mask OUT/mask_2d.png.
 """
 
 import argparse
-import json
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
 
 from .. import bench, config as config_module, frames
-from .. import camera as cameras
 from .. import region as regions
+from ..cli_inputs import add_view_args, given, resolve_camera
 
-OUTPUT_FILES = ("edit.glb", "edit.json", "regions.npz", "mask_2d.png")
 ASSET_FLAGS = ("source", "edited_view", "region", "whole", "mask", "camera_meta", "view", "camera", "orbit")
 
 
@@ -51,35 +48,8 @@ def _parser() -> argparse.ArgumentParser:
     asset.add_argument("--region", type=Path, help="3D region: GLB of closed parts, or YAML/JSON primitives")
     asset.add_argument("--global", dest="whole", action="store_true",
                        help="region = the source's bounding box padded by 0.1 of its longest side")
-    asset.add_argument("--mask", type=Path, help="2D mask of the edited view (single-channel PNG)")
-    asset.add_argument("--camera-meta", type=Path, help="meta.json holding the edited view's camera")
-    asset.add_argument("--view", type=int, help="camera index in --camera-meta")
-    asset.add_argument("--camera", type=Path, help="single-camera JSON")
-    asset.add_argument("--orbit", type=float, nargs=2, metavar=("ELEVATION", "AZIMUTH"),
-                       help="benchmark-style orbit camera, degrees")
+    add_view_args(asset)
     return parser
-
-
-def _given(args, names) -> list:
-    return [f"--{name.replace('_', '-')}" if name != "whole" else "--global" for name in names
-            if getattr(args, name) not in (None, False)]
-
-
-def _camera(args, size: int):
-    chosen = _given(args, ("camera_meta", "camera", "orbit"))
-    if len(chosen) != 1:
-        raise SystemExit(f"projecting the mask needs exactly one of --camera-meta, --camera, --orbit; got {chosen}")
-    if args.camera_meta is not None:
-        if args.view is None:
-            raise SystemExit("--camera-meta needs --view")
-        camera = cameras.from_meta(args.camera_meta, args.view)
-    elif args.camera is not None:
-        camera = cameras.from_json(args.camera)
-    else:
-        camera = cameras.orbit(args.orbit[0], args.orbit[1], size)
-    if camera.size != size:
-        raise SystemExit(f"the camera frame is {camera.size} px but the edited view is {size} px")
-    return camera
 
 
 def _asset_inputs(args, cfg):
@@ -88,15 +58,15 @@ def _asset_inputs(args, cfg):
     if args.view is not None and args.camera_meta is None:
         raise SystemExit("--view selects a camera of --camera-meta")
     if cfg.mode == "uniform":
-        ignored = _given(args, ("region", "whole", "mask", "camera_meta", "camera", "orbit"))
+        ignored = given(args, ("region", "whole", "mask", "camera_meta", "camera", "orbit"))
         if ignored:
             raise SystemExit(f"uniform mode reads no region or mask; remove {ignored}")
         return args.source, args.edited_view, None, None, None
     if args.whole == (args.region is not None):
         raise SystemExit("give exactly one of --region and --global")
-    if args.mask is not None and _given(args, ("camera_meta", "camera", "orbit")):
+    if args.mask is not None and given(args, ("camera_meta", "camera", "orbit")):
         raise SystemExit("give either --mask or a camera to project the region, not both")
-    if args.mask is None and not _given(args, ("camera_meta", "camera", "orbit")):
+    if args.mask is None and not given(args, ("camera_meta", "camera", "orbit")):
         raise SystemExit("give --mask, or a camera (--camera-meta/--camera/--orbit) to project the region")
     source = frames.load_mesh(args.source)
     region = regions.global_region(source) if args.whole else regions.load_region(args.region)
@@ -105,7 +75,7 @@ def _asset_inputs(args, cfg):
     width, height = Image.open(args.edited_view).size
     if width != height:
         raise SystemExit(f"a projected mask needs a square edited view, got {width}x{height}")
-    mask = regions.project_mask(region, source, _camera(args, width))
+    mask = regions.project_mask(region, source, resolve_camera(args, width))
     return args.source, args.edited_view, region, mask, mask
 
 
@@ -124,7 +94,7 @@ def main(argv=None):
     if benchmark:
         if args.case is None or args.bench_root is None:
             raise SystemExit("a benchmark case needs both --bench-root and --case")
-        conflicting = _given(args, ASSET_FLAGS)
+        conflicting = given(args, ASSET_FLAGS)
         if conflicting:
             raise SystemExit(f"a benchmark case reads its inputs from the case folder; remove {conflicting}")
         case = bench.parse_case(args.bench_root, args.case)
@@ -138,24 +108,14 @@ def main(argv=None):
         adapter = args.adapter
     model = str(Path(args.model).resolve()) if Path(args.model).exists() else args.model
 
-    args.out.mkdir(parents=True, exist_ok=True)
-    for name in OUTPUT_FILES:
-        (args.out / name).unlink(missing_ok=True)
-
-    from .edit import run_edit, steps_to_npz
+    from .edit import clear_outputs, run_edit, save_outputs
     from .model import load_edit_pipeline
 
+    clear_outputs(args.out)
     pipeline = load_edit_pipeline(adapter, model)
     mesh, record, steps = run_edit(pipeline, cfg, source, edited_view, region, mask)
-
-    mesh.export(args.out / "edit.glb")
-    if projected is not None:
-        Image.fromarray(projected.astype(np.uint8) * 255).save(args.out / "mask_2d.png")
-    if steps:
-        np.savez_compressed(args.out / "regions.npz", **steps_to_npz(steps))
-    record.update(source=str(source), edited_view=str(edited_view), adapter=str(adapter),
-                  settings=config_module.to_dict(cfg))
-    (args.out / "edit.json").write_text(json.dumps(record, indent=1), encoding="utf-8")
+    save_outputs(args.out, mesh, record, steps, cfg, source=source, edited_view=edited_view, adapter=adapter,
+                 projected_mask=projected)
     print(f"wrote {args.out / 'edit.glb'}  faces={record['faces']}  ({record['seconds']} s)")
 
 

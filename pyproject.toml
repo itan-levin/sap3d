@@ -15,6 +15,9 @@ dependencies = []
 
 [project.scripts]
 sap3d-edit = "sap3d.edit.cli:main"
+sap3d-texture = "sap3d.texture.cli:main"
+sap3d-eval = "sap3d.eval.cli:main"
+sap3d-bench = "sap3d.eval.bench:main"
 
 [tool.setuptools.packages.find]
 where = [".", "third_party/hy3dshape"]

@@ -1,0 +1,19 @@
+# Texture configuration. Every value here equals the built-in default, so this file only documents them; a
+# configuration file may name any subset of these keys.
+
+# Edge of the UV atlas built on the edited mesh, in texels.
+atlas_size: 2048
+# The edited mesh is decimated to this many faces before unwrapping and painting (at most 40000, the
+# paint model's own budget).
+target_faces: 40000
+# Reject a copied texel whose source face normal points against the edited surface's normal.
+normal_gate: true
+# Composite mode: thickness of the shell just outside the region that is painted rather than copied, in
+# the source mesh's units.
+boundary_margin: 0.02
+# Composite mode: width of the band beyond that shell blending painted into copied color.
+feather_width: 0.01
+# Composite mode: fit the painted region's color to the edited view through its camera.
+color_fit: true
+# RealESRGAN_x4plus.pth used by the paint model; empty means third_party/hy3dpaint/ckpt/RealESRGAN_x4plus.pth.
+realesrgan_ckpt: ""
