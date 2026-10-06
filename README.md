@@ -51,10 +51,10 @@ python scripts/download_realesrgan.py
 - `scripts/download_realesrgan.py` fetches `RealESRGAN_x4plus.pth`, which the paint model needs, from the
   Real-ESRGAN v0.1.0 release (https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth)
   to `third_party/hy3dpaint/ckpt/`.
-- Model weights download from Hugging Face on first use: `tencent/Hunyuan3D-2.1` (shape and paint models),
-  `facebook/dinov2-large`, `facebook/dinov2-giant`, `facebook/dinov2-base`, `openai/clip-vit-base-patch32`,
-  LPIPS AlexNet and the background remover. Behind a proxy that blocks Hugging Face's Xet storage, set
-  `HF_HUB_DISABLE_XET=1`.
+- Model weights download on first use. From Hugging Face: `tencent/Hunyuan3D-2.1` (shape and paint models),
+  `facebook/dinov2-large`, `facebook/dinov2-giant`, `facebook/dinov2-base` and `openai/clip-vit-base-patch32`.
+  The LPIPS AlexNet comes from download.pytorch.org and the background remover's `u2net.onnx` from GitHub.
+  Behind a proxy that blocks Hugging Face's Xet storage, set `HF_HUB_DISABLE_XET=1`.
 - GPU memory, measured on an 80 GB A100: training an adapter peaks at about 62 GiB, texturing at about 21 GiB.
 
 ## Data
