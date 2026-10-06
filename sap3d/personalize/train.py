@@ -9,6 +9,7 @@ draws a sample from the posterior). Every `validation.every` steps the adapter i
 copied to `<out>/adapter/`.
 """
 
+import importlib.util
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,15 @@ IMAGE_ENCODER = {"type": "DinoImageEncoder",
 # The edit stage expects exactly these: fc1/fc2 of the block MLPs and net.0.proj/net.2 of the MoE experts.
 LORA_TARGETS = ["fc1", "fc2", "net.0.proj", "net.2"]
 Z_SCALE_FACTOR = 1.0039506158752403
+
+
+def require_torch_cluster() -> None:
+    """Raise unless torch-cluster imports. Training reaches it only inside the shape VAE's encoder, at the first
+    training step, after every model has loaded."""
+    if importlib.util.find_spec("torch_cluster") is None:
+        raise ModuleNotFoundError("sap3d-personalize train needs torch-cluster; build it with "
+                                  "`bash scripts/build_extensions.sh --with-torch-cluster`")
+    import torch_cluster  # noqa: F401
 
 
 def seed_everything(seed: int) -> None:
@@ -119,6 +129,7 @@ def set_training(models: Models, training: bool) -> None:
 
 
 def run(cfg: PersonalizeConfig, data_dir, out_dir, model_path: str = "tencent/Hunyuan3D-2.1") -> dict:
+    require_torch_cluster()
     import peft
 
     data_dir, out_dir = Path(data_dir).resolve(), Path(out_dir)

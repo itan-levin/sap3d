@@ -1,11 +1,13 @@
 """Personalize stage logic that needs no GPU: the training sample transform, the Chamfer definitions, the legacy
-surface extraction, the validation draw sequence, the learning-rate schedule, checkpoint selection, settings and
-command-line validation. Expected values are fixed reference outputs on synthetic inputs."""
+surface extraction, the validation draw sequence, the learning-rate schedule, checkpoint selection, settings,
+command-line validation and the refusal to train without torch-cluster. Expected values are fixed reference outputs
+on synthetic inputs."""
 
 import hashlib
 import json
 import math
 import random
+import sys
 import tempfile
 from pathlib import Path
 
@@ -14,7 +16,7 @@ import numpy as np
 import torch
 
 from sap3d import config
-from sap3d.personalize import cli, select
+from sap3d.personalize import cli, select, train
 from sap3d.personalize import validate as validation
 from sap3d.personalize.data import SampleStream
 from sap3d.personalize.train import make_optimizer
@@ -186,3 +188,28 @@ def test_cli_validation():
     assert exits(["train", "--data", "x"])
     assert exits(["select", "--run", "x", "--selection-metric", "squared"])
     assert exits(["dataset", "--asset", "x", "--out", "y", "--seed", "1.5"])
+
+
+def test_train_refuses_without_torch_cluster():
+    def no_model_loads(*args):
+        raise AssertionError("a model was loaded before the torch-cluster check")
+    saved_module, saved_build = sys.modules.get("torch_cluster"), train.build_models
+    sys.modules["torch_cluster"] = None
+    train.build_models = no_model_loads
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            data = _dataset(Path(folder) / "data", points=config.TrainConfig().points_per_sample)
+            run = Path(folder) / "run"
+            try:
+                cli.main(["train", "--data", str(data), "--out", str(run)])
+            except ModuleNotFoundError as error:
+                assert "build_extensions.sh --with-torch-cluster" in str(error), error
+            else:
+                raise AssertionError("train started without torch-cluster")
+            assert not run.exists()
+    finally:
+        train.build_models = saved_build
+        if saved_module is None:
+            del sys.modules["torch_cluster"]
+        else:
+            sys.modules["torch_cluster"] = saved_module

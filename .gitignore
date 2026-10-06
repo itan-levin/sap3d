@@ -6,3 +6,7 @@ dist/
 outputs/
 *.so
 third_party/hy3dpaint/ckpt/
+/Edit3D-Bench/
+/adapters/
+/global_edits/
+/runs/

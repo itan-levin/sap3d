@@ -22,18 +22,14 @@ objects can be downloaded, so the personalize stage is needed only for new asset
 
 ## Install
 
-Linux, an NVIDIA GPU, conda and a system C++ compiler (gcc and g++). Two pinned Python 3.10 environments are
-provided. PyTorch 2.8 is recommended: it is the environment that reproduces the paper's numbers. PyTorch 2.5.1
-also runs every stage.
+Linux, an NVIDIA GPU, conda and a system C++ compiler (gcc and g++). The conda environment (`environment.yml`)
+pins Python 3.10, PyTorch 2.8.0 and the CUDA 12.8 compiler.
 
 ```bash
 git clone <this repository> sap3d && cd sap3d
 
-# PyTorch 2.8.0, CUDA 12.8 (recommended)
-conda env create -f environment-torch28.yml
-conda activate sap3d-torch28
-# or PyTorch 2.5.1, CUDA 12.4
-# conda env create -f environment.yml && conda activate sap3d
+conda env create -f environment.yml
+conda activate sap3d
 
 export CUDA_HOME=$CONDA_PREFIX CPATH=$CONDA_PREFIX/targets/x86_64-linux/include \
        LIBRARY_PATH=$CONDA_PREFIX/targets/x86_64-linux/lib:$CONDA_PREFIX/lib
@@ -46,7 +42,7 @@ python scripts/download_realesrgan.py
   environment's CUDA compiler and the system C++ compiler, for the visible GPU. Set `TORCH_CUDA_ARCH_LIST`
   (for example `"8.0;8.6;9.0;12.0"`) to build for other GPUs.
 - The personalize stage also needs torch-cluster, which the other stages do not use and which takes about
-  25 minutes to compile. `bash scripts/build_extensions.sh --with-torch-cluster` builds it with the rest.
+  20–25 minutes to compile. `bash scripts/build_extensions.sh --with-torch-cluster` builds it with the rest.
 - Use an editable install from a clone (or run from the repository root with
   `PYTHONPATH=$PWD:$PWD/third_party/hy3dshape`): the texture and eval stages use the vendored paint model and
   Edit3D-Bench scorer under `third_party/` by path.
@@ -176,8 +172,7 @@ refuses stages made with other settings; `--overwrite` redoes them. `--global` r
 
 ## Reproducing the paper's numbers
 
-Use the PyTorch 2.8 environment on an A100-class GPU, with the downloaded adapters and the shipped
-configurations:
+Use an A100-class GPU, the downloaded adapters and the shipped configurations:
 
 ```bash
 python -c "from sap3d import bench; print('\n'.join(c.case_id for c in bench.iter_cases('Edit3D-Bench/data')))" \
