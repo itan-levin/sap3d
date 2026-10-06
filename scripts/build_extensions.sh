@@ -2,10 +2,11 @@
 # Builds the compiled extensions against the torch installed in the active environment, from the
 # repository root:
 #   diso               the differentiable marching cubes the shape decoder extracts surfaces with (CUDA)
-#   torch-cluster      farthest-point sampling in the shape VAE's encoder, used by personalize (CUDA)
 #   custom_rasterizer  the paint model's rasterizer (CUDA)
 #   mesh painter       the paint model's texture inpainting helper (C++), compiled in place into
 #                      third_party/hy3dpaint/DifferentiableRenderer, where hy3dpaint imports it from
+#   torch-cluster      only with --with-torch-cluster: farthest-point sampling in the shape VAE's encoder,
+#                      which only the personalize stage runs (CUDA)
 # Needs a CUDA toolkit whose major version matches torch's (CUDA_HOME pointing at it) and a C++ compiler.
 # FORCE_CUDA=1 makes diso and torch-cluster build their CUDA kernels even where no GPU is visible; without
 # a GPU and without it, they silently build CPU-only modules. TORCH_CUDA_ARCH_LIST, when set, names the GPU
@@ -14,11 +15,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+with_torch_cluster=0
+for arg in "$@"; do
+  case "$arg" in
+    --with-torch-cluster) with_torch_cluster=1 ;;
+    *) echo "unknown argument: $arg (the only option is --with-torch-cluster)" >&2; exit 2 ;;
+  esac
+done
+
 FORCE_CUDA=1 python -m pip install --no-build-isolation --no-deps --no-binary diso diso==0.1.4
 python -c "import diso; from diso import DiffDMC; print('diso', diso.__file__)"
-
-FORCE_CUDA=1 python -m pip install --no-build-isolation --no-deps --no-binary torch-cluster torch-cluster==1.6.3
-python -c "import torch, torch_cluster; print('torch-cluster', torch_cluster.__file__)"
 
 python -m pip install --no-build-isolation --no-deps ./third_party/hy3dpaint/custom_rasterizer
 python -c "import torch, custom_rasterizer; print('custom_rasterizer', custom_rasterizer.__file__)"
@@ -31,3 +37,8 @@ python -c "import torch, custom_rasterizer; print('custom_rasterizer', custom_ra
 )
 python -c "import sys; sys.path.insert(0, 'third_party/hy3dpaint'); \
 from DifferentiableRenderer.mesh_inpaint_processor import meshVerticeInpaint; print('mesh painter built')"
+
+if [ "$with_torch_cluster" = 1 ]; then
+  FORCE_CUDA=1 python -m pip install --no-build-isolation --no-deps --no-binary torch-cluster torch-cluster==1.6.3
+  python -c "import torch, torch_cluster; print('torch-cluster', torch_cluster.__file__)"
+fi

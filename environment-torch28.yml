@@ -1,12 +1,16 @@
 name: sap3d-torch28
 channels:
   - conda-forge
+  - nodefaults
 dependencies:
   - python=3.10
   - pip
   # CUDA 12.8 compiler and the library headers torch's CUDA headers include, needed to build the
-  # compiled extensions (scripts/build_extensions.sh) for torch 2.8
-  - cuda-nvcc=12.8
+  # compiled extensions (scripts/build_extensions.sh) for torch 2.8. Not the cuda-nvcc package: it adds a
+  # conda gcc, whose C++ runtime is newer than the system's that bpy and open3d load, and sets
+  # TORCH_CUDA_ARCH_LIST to architectures diso cannot be compiled for.
+  - cuda-nvcc-tools=12.8
+  - cuda-nvcc-impl=12.8
   - cuda-cudart-dev=12.8
   - cuda-version=12.8
   - libcublas-dev

@@ -22,8 +22,9 @@ objects can be downloaded, so the personalize stage is needed only for new asset
 
 ## Install
 
-Linux, Python 3.10 and an NVIDIA GPU. Two pinned environments are provided. PyTorch 2.8 is recommended: it is
-the environment that reproduces the paper's numbers. PyTorch 2.5.1 also runs every stage.
+Linux, an NVIDIA GPU, conda and a system C++ compiler (gcc and g++). Two pinned Python 3.10 environments are
+provided. PyTorch 2.8 is recommended: it is the environment that reproduces the paper's numbers. PyTorch 2.5.1
+also runs every stage.
 
 ```bash
 git clone <this repository> sap3d && cd sap3d
@@ -36,15 +37,16 @@ conda activate sap3d-torch28
 
 export CUDA_HOME=$CONDA_PREFIX CPATH=$CONDA_PREFIX/targets/x86_64-linux/include \
        LIBRARY_PATH=$CONDA_PREFIX/targets/x86_64-linux/lib:$CONDA_PREFIX/lib
-bash scripts/build_extensions.sh     # diso, torch-cluster, custom_rasterizer, the mesh painter
+bash scripts/build_extensions.sh     # diso, custom_rasterizer, the mesh painter
 pip install -e .
 python scripts/download_realesrgan.py
 ```
 
 - `scripts/build_extensions.sh` compiles the CUDA and C++ extensions against the installed torch with the
-  environment's CUDA compiler. Set `TORCH_CUDA_ARCH_LIST` (for example `"8.0;8.6;9.0;12.0"`) to build for GPUs
-  other than the visible one. If the environment's compiler is newer than the system's C++ runtime, set `CC`
-  and `CXX` to the system compilers.
+  environment's CUDA compiler and the system C++ compiler, for the visible GPU. Set `TORCH_CUDA_ARCH_LIST`
+  (for example `"8.0;8.6;9.0;12.0"`) to build for other GPUs.
+- The personalize stage also needs torch-cluster, which the other stages do not use and which takes about
+  25 minutes to compile. `bash scripts/build_extensions.sh --with-torch-cluster` builds it with the rest.
 - Use an editable install from a clone (or run from the repository root with
   `PYTHONPATH=$PWD:$PWD/third_party/hy3dshape`): the texture and eval stages use the vendored paint model and
   Edit3D-Bench scorer under `third_party/` by path.
@@ -79,6 +81,7 @@ sap3d-personalize dataset --asset assets/my_asset --out data/my_asset
 sap3d-personalize train   --data data/my_asset --out runs/my_asset     # the adapter is runs/my_asset/adapter
 ```
 
+- Needs torch-cluster: `bash scripts/build_extensions.sh --with-torch-cluster`.
 - `prepare` puts a glTF/GLB asset with static meshes into Edit3D-Bench's layout: `source_model/model.glb`,
   centered at the origin with its longest side 1, and 16 views with their cameras (`render/render_0000-0015.png`,
   `render/meta.json`). An Edit3D-Bench object folder (`Edit3D-Bench/data/GSO/SORTING_BUS`) already has this
