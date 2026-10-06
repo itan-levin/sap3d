@@ -268,3 +268,28 @@ def test_texture_steps_run_apart_as_texture_job_runs_them():
         for name in ("composite.glb", "reference.png", "atlases/source_atlas.png", "atlases/painted_atlas.png",
                      "atlases/composite_atlas.png", "atlases/region_mask.png"):
             assert (tmp / "whole" / name).read_bytes() == (tmp / "apart" / name).read_bytes(), name
+
+
+def test_painted_obj_converts_to_glb_from_a_worker_thread():
+    import subprocess
+    import sys
+    import threading
+
+    from sap3d import third_party
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = pathlib.Path(tmp)
+        _textured(trimesh.creation.icosphere(subdivisions=2, radius=0.4), 3).export(tmp / "painted.obj")
+        outcome = {}
+
+        def convert():
+            outcome["code"] = subprocess.run(
+                [sys.executable, "-m", "sap3d.texture.paint", str(tmp / "painted.obj"), str(tmp / "painted.glb")],
+                env=third_party.child_env(), capture_output=True).returncode
+
+        worker = threading.Thread(target=convert)
+        worker.start()
+        worker.join()
+        assert outcome["code"] == 0
+        converted = trimesh.load(str(tmp / "painted.glb"), force="mesh", process=False)
+        assert converted.visual.material.baseColorTexture is not None and len(converted.faces) == 320

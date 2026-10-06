@@ -5,6 +5,7 @@ directory goes on `sys.path` in this process only; no other stage imports anythi
 """
 
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,22 +68,34 @@ def paint(pipeline, mesh_glb_bytes: bytes, reference_png: Path, work_dir: Path) 
     """Paint one mesh into `work_dir` and return the painted GLB.
 
     hy3dpaint writes its remesh intermediate beside its input, so the input is staged in `work_dir`, which
-    is emptied first: hy3dpaint never removes an earlier output and its GLB conversion fails silently.
+    is emptied first: hy3dpaint never removes an earlier output. Its OBJ-to-GLB conversion goes through
+    Blender, whose context exists only in a process's main thread, so it runs in a child process and this
+    function can be called from any thread.
     """
-    import bpy
-
     work_dir = Path(work_dir)
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
     staged = work_dir / "input.glb"
     staged.write_bytes(mesh_glb_bytes)
-    pipeline(mesh_path=str(staged), image_path=str(reference_png),
-             output_mesh_path=str(work_dir / "textured_mesh.obj"), use_remesh=USE_REMESH, save_glb=True)
-    # hy3dpaint's scene clear removes objects only; its meshes, materials and images would accumulate.
-    bpy.data.orphans_purge(do_recursive=True)
+    painted_obj = work_dir / "textured_mesh.obj"
+    pipeline(mesh_path=str(staged), image_path=str(reference_png), output_mesh_path=str(painted_obj),
+             use_remesh=USE_REMESH, save_glb=False)
     painted = work_dir / "textured_mesh.glb"
-    if not painted.is_file():
-        raise RuntimeError(f"hy3dpaint produced no GLB in {work_dir}; its OBJ-to-GLB conversion swallows every "
-                           f"error")
+    subprocess.run([sys.executable, "-m", "sap3d.texture.paint", str(painted_obj.resolve()), str(painted.resolve())],
+                   env=third_party.child_env(), check=True)
     return painted
+
+
+def convert_to_glb(obj_path, glb_path) -> None:
+    """hy3dpaint's own OBJ-to-GLB conversion (Blender), in this process's main thread."""
+    _enable_imports()
+    from DifferentiableRenderer.mesh_utils import convert_obj_to_glb
+
+    if not convert_obj_to_glb(str(obj_path), str(glb_path)) or not Path(glb_path).is_file():
+        raise RuntimeError(f"Blender could not convert {obj_path} to {glb_path}; hy3dpaint's conversion swallows "
+                           f"the error")
+
+
+if __name__ == "__main__":
+    convert_to_glb(*sys.argv[1:3])
