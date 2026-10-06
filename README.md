@@ -41,8 +41,6 @@ python scripts/download_realesrgan.py
 - `scripts/build_extensions.sh` compiles the CUDA and C++ extensions against the installed torch with the
   environment's CUDA compiler and the system C++ compiler, for the visible GPU. Set `TORCH_CUDA_ARCH_LIST`
   (for example `"8.0;8.6;9.0;12.0"`) to build for other GPUs.
-- The personalize stage also needs torch-cluster, which the other stages do not use and which takes about
-  20–25 minutes to compile. `bash scripts/build_extensions.sh --with-torch-cluster` builds it with the rest.
 - Use an editable install from a clone (or run from the repository root with
   `PYTHONPATH=$PWD:$PWD/third_party/hy3dshape`): the texture and eval stages use the vendored paint model and
   Edit3D-Bench scorer under `third_party/` by path.
@@ -77,7 +75,6 @@ sap3d-personalize dataset --asset assets/my_asset --out data/my_asset
 sap3d-personalize train   --data data/my_asset --out runs/my_asset     # the adapter is runs/my_asset/adapter
 ```
 
-- Needs torch-cluster: `bash scripts/build_extensions.sh --with-torch-cluster`.
 - `prepare` puts a glTF/GLB asset with static meshes into Edit3D-Bench's layout: `source_model/model.glb`,
   centered at the origin with its longest side 1, and 16 views with their cameras (`render/render_0000-0015.png`,
   `render/meta.json`). An Edit3D-Bench object folder (`Edit3D-Bench/data/GSO/SORTING_BUS`) already has this

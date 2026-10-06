@@ -1,9 +1,13 @@
 --extra-index-url https://download.blender.org/pypi/
+--find-links https://data.pyg.org/whl/torch-2.8.0+cu128.html
 # PyTorch 2.8.0 (the PyPI wheel is built for CUDA 12.8), Python 3.10.
-# diso, torch-cluster, custom_rasterizer and the mesh painter are compiled against the installed torch:
+# diso, custom_rasterizer and the mesh painter are compiled against the installed torch:
 # scripts/build_extensions.sh
 torch==2.8.0
 torchvision==0.23.0
+# PyTorch Geometric's build for torch 2.8.0 and CUDA 12.8, from the --find-links page; it must change with the
+# torch pin. PyPI has only its source.
+torch-cluster==1.6.3+pt28cu128
 timm==1.0.30
 setuptools==80.9.0
 # Lets scripts/build_extensions.sh compile diso and custom_rasterizer in parallel.
@@ -25,6 +29,7 @@ huggingface-hub==0.30.2
 safetensors==0.4.4
 einops==0.8.0
 omegaconf==2.3.0
+torchdiffeq==0.2.5
 tqdm==4.66.5
 rembg==2.0.65
 onnxruntime==1.16.3
@@ -32,8 +37,8 @@ open3d==0.18.0
 pysdf==0.1.9
 pymeshlab==2022.2.post3
 scikit-image==0.24.0
-# Texture and eval stages. bpy 4.0.0 comes from the extra index on the first line: PyPI has only the builds
-# for Python 3.11 and later.
+# Texture and eval stages. bpy 4.0.0 comes from the --extra-index-url: PyPI has only the builds for Python
+# 3.11 and later.
 bpy==4.0.0
 bpyrenderer @ git+https://github.com/huanngzh/bpy-renderer.git@3ebb94dde9c63fb52aaa2e5f8b1ad3b03060b14c
 xatlas==0.0.9
