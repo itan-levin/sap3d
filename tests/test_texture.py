@@ -212,3 +212,59 @@ def test_color_fit_job_keeps_composite_bytes_when_round_zero_wins():
         assert (root / "fitted.glb").read_bytes() == composite_glb.read_bytes()
         assert json.loads((root / "fit" / "fit.json").read_text())["published_iteration"] == 0
         assert not list((root / "fit").glob("iter*"))
+
+
+def _sphere_uv(vertices: np.ndarray) -> np.ndarray:
+    unit = vertices / np.linalg.norm(vertices, axis=1, keepdims=True)
+    return np.stack([0.5 + np.arctan2(unit[:, 2], unit[:, 0]) / (2 * np.pi), 0.5 + np.arcsin(unit[:, 1]) / np.pi],
+                    axis=1)
+
+
+def _textured(mesh: trimesh.Trimesh, seed: int) -> trimesh.Trimesh:
+    image = Image.fromarray(np.random.default_rng(seed).integers(0, 256, (64, 64, 3), dtype=np.uint8))
+    material = trimesh.visual.material.PBRMaterial(baseColorTexture=image)
+    return trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces, process=False,
+                           visual=trimesh.visual.TextureVisuals(uv=_sphere_uv(mesh.vertices), material=material))
+
+
+def test_texture_steps_run_apart_as_texture_job_runs_them():
+    import dataclasses
+
+    from sap3d.config import load_texture_config
+    from sap3d.texture import paint, texture
+
+    def fake_paint(pipeline, mesh_glb_bytes, reference_png, work_dir):
+        work_dir = pathlib.Path(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        plain = trimesh.load(trimesh.util.wrap_as_stream(mesh_glb_bytes), file_type="glb", force="mesh",
+                             process=False)
+        _textured(plain, 2).export(work_dir / "textured_mesh.glb")
+        return work_dir / "textured_mesh.glb"
+
+    cfg = dataclasses.replace(load_texture_config(None), atlas_size=128, target_faces=600)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = pathlib.Path(tmp)
+        sphere = trimesh.creation.icosphere(subdivisions=3, radius=0.4)
+        _textured(sphere, 1).export(tmp / "source.glb")
+        trimesh.Trimesh(vertices=sphere.vertices * 1.01, faces=sphere.faces).export(tmp / "edit.glb")
+        view = np.full((96, 96, 3), 255, dtype=np.uint8)
+        view[24:72, 30:66] = (200, 60, 40)
+        Image.fromarray(view).save(tmp / "view.png")
+        (tmp / "region.yaml").write_text(json.dumps(
+            {"primitives": [{"type": "box", "center": [0.3, 0.0, 0.0], "extents": [0.3, 0.3, 0.3]}]}))
+        job = {"mode": "composite", "mesh": str(tmp / "edit.glb"), "source": str(tmp / "source.glb"),
+               "edited_view": str(tmp / "view.png"), "region": str(tmp / "region.yaml"), "view": None,
+               "color_fit": False}
+        original = paint.paint
+        paint.paint = fake_paint
+        try:
+            whole = texture.texture_job(None, {**job, "out_dir": str(tmp / "whole")}, cfg, "model")
+        finally:
+            paint.paint = original
+        state = texture.prepare_texture({**job, "out_dir": str(tmp / "apart")}, cfg)
+        painted = fake_paint(None, state["paint_glb"], state["reference_png"], tmp / "apart" / "paint")
+        apart = texture.finish_texture(state, painted, cfg, "model")
+        assert whole["region_texels"] == apart["region_texels"] > 0
+        for name in ("composite.glb", "reference.png", "atlases/source_atlas.png", "atlases/painted_atlas.png",
+                     "atlases/composite_atlas.png", "atlases/region_mask.png"):
+            assert (tmp / "whole" / name).read_bytes() == (tmp / "apart" / name).read_bytes(), name

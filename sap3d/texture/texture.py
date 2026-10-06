@@ -82,8 +82,11 @@ def _copied_from_region(position, mapped, region_mask, source, region_mesh) -> t
                  "high_fraction_1pct_diag": float((relative > 0.01).mean())}
 
 
-def texture_job(pipeline, job: dict, cfg, model: str) -> dict:
-    """Paint and assemble one job's texture; returns its record (also written to `texture.json`)."""
+def prepare_texture(job: dict, cfg) -> dict:
+    """Everything before painting (CPU only): the atlas of the decimated edited mesh, its surface maps and,
+    in composite mode, the copied source texture and the region's texels. Returns the state
+    `finish_texture` reads; the paint model reads `state["paint_glb"]` (GLB bytes) and
+    `state["reference_png"]`."""
     mode = job["mode"]
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
@@ -107,6 +110,8 @@ def texture_job(pipeline, job: dict, cfg, model: str) -> dict:
     record = {"mode": mode, "faces_before": int(len(raw.faces)), "faces": int(len(work.faces)),
               "vertices": int(len(work.vertices))}
     _write_png(mapped, atlas_dir / "mapped.png")
+    state = {"job": job, "started": started, "out_dir": out_dir, "atlas_dir": atlas_dir, "record": record,
+             "work": work, "position": position, "normal": normal, "mapped": mapped}
 
     if mode == "composite":
         region_mesh = texels.region_mesh(load_region(job["region"]).surface)
@@ -120,10 +125,19 @@ def texture_job(pipeline, job: dict, cfg, model: str) -> dict:
         _write_png(source_rgb, atlas_dir / "source_atlas.png")
         _write_png(region_mask, atlas_dir / "region_mask.png")
         _write_png(copied, atlas_dir / "copied_from_region.png")
+        state.update(region_mesh=region_mesh, source_rgb=source_rgb, region_mask=region_mask, copied=copied)
 
     reference_png = out_dir / "reference.png"
     reference.write_reference(job["edited_view"], reference_png)
-    painted_glb = paint.paint(pipeline, atlas.plain_glb_bytes(decimated), reference_png, out_dir / "paint")
+    state.update(reference_png=reference_png, paint_glb=atlas.plain_glb_bytes(decimated))
+    return state
+
+
+def finish_texture(state: dict, painted_glb, cfg, model: str) -> dict:
+    """Everything after painting (CPU only): the painted texels on the atlas, the composite, the GLB and
+    `texture.json`. Returns the record."""
+    job, out_dir, atlas_dir, record = state["job"], state["out_dir"], state["atlas_dir"], state["record"]
+    position, normal, mapped = state["position"], state["normal"], state["mapped"]
     painted_mesh = trimesh.load(str(painted_glb), force="mesh", process=False)
     painted_rgb, record["painted_transfer"] = atlas.transfer_texture(position, mapped, normal, painted_mesh,
                                                                      cfg.normal_gate)
@@ -136,21 +150,31 @@ def texture_job(pipeline, job: dict, cfg, model: str) -> dict:
         raise RuntimeError(f"{job['mesh']}: the painted atlas has a constant channel (std {spread.tolist()})")
     _write_png(painted_rgb, atlas_dir / "painted_atlas.png")
 
-    if mode == "composite":
-        depth = texels.signed_depth(position, mapped, region_mask, region_mesh)
+    if job["mode"] == "composite":
+        depth = texels.signed_depth(position, mapped, state["region_mask"], state["region_mesh"])
         published, record["composite"] = composite.composite(
-            source_rgb, painted_rgb, region_mask, depth=depth, depth_gate=mapped, copied_from_region=copied,
-            feather_width=cfg.feather_width, boundary_margin=cfg.boundary_margin)
+            state["source_rgb"], painted_rgb, state["region_mask"], depth=depth, depth_gate=mapped,
+            copied_from_region=state["copied"], feather_width=cfg.feather_width,
+            boundary_margin=cfg.boundary_margin)
         np.savez_compressed(atlas_dir / "region_signed_depth.npz", depth=depth)
         _write_png(published, atlas_dir / "composite_atlas.png")
     else:
         published = painted_rgb
-    atlas.export_glb(work, work.visual.uv, published, out_dir / OUTPUT_NAMES[mode])
+    work = state["work"]
+    atlas.export_glb(work, work.visual.uv, published, out_dir / OUTPUT_NAMES[job["mode"]])
 
-    record.update(seconds=round(time.time() - started, 1), inputs=job_inputs(job), settings=settings(cfg, model),
+    record.update(seconds=round(time.time() - state["started"], 1), inputs=job_inputs(job),
+                  settings=settings(cfg, model),
                   job={key: (str(value) if isinstance(value, Path) else value) for key, value in job.items()})
     (out_dir / "texture.json").write_text(json.dumps(record, indent=1, sort_keys=True), encoding="utf-8")
     return record
+
+
+def texture_job(pipeline, job: dict, cfg, model: str) -> dict:
+    """Paint and assemble one job's texture; returns its record (also written to `texture.json`)."""
+    state = prepare_texture(job, cfg)
+    painted_glb = paint.paint(pipeline, state["paint_glb"], state["reference_png"], state["out_dir"] / "paint")
+    return finish_texture(state, painted_glb, cfg, model)
 
 
 def color_fit_jobs(jobs: list) -> list:
