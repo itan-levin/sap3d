@@ -1,4 +1,4 @@
-"""Edit- and texture-stage settings: frozen dataclasses holding the default values, and YAML loaders.
+"""Edit-, texture- and personalize-stage settings: frozen dataclasses holding the default values, and YAML loaders.
 
 A YAML file names any subset of the settings by section; every key it names must exist, so a misspelled
 setting fails instead of silently leaving the default in force.
@@ -7,6 +7,7 @@ setting fails instead of silently leaving the default in force.
 import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -95,7 +96,71 @@ class TextureConfig:
     realesrgan_ckpt: str = ""
 
 
+@dataclass(frozen=True)
+class DatasetConfig:
+    random_views: int = 250
+    render_size: int = 512
+    render_samples: int = 128
+    camera_fov: float = 49.1
+    elevation_min: float = -5.0
+    elevation_max: float = 40.0
+    azimuth_min: float = -180.0
+    azimuth_max: float = 180.0
+    distance_scale_min: float = 1.0
+    distance_scale_max: float = 1.5
+    surface_points: int = 200_000
+    seed: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class TrainConfig:
+    steps: int = 5000
+    batch_size: int = 4
+    learning_rate: float = 7e-6
+    adam_beta1: float = 0.9
+    adam_beta2: float = 0.99
+    adam_eps: float = 1e-6
+    weight_decay: float = 1e-2
+    warmup_steps: int = 100
+    lr_factor_start: float = 0.1
+    lr_factor_max: float = 1.0
+    lr_factor_min: float = 0.5
+    grad_clip_norm: float = 1.0
+    seed: int = 0
+    lora_rank: int = 16
+    lora_alpha: int = 16
+    points_per_sample: int = 81_920
+    image_size: int = 518
+    crop_margin: int = 5
+    pad_ratio: float = 1.15
+
+
+SELECTION_METRICS = ("corrected", "legacy")
+
+
+@dataclass(frozen=True)
+class ValidationConfig:
+    every: int = 500
+    num_steps: int = 50
+    guidance_scale: float = 5.0
+    octree_resolution: int = 384
+    num_chunks: int = 8000
+    chamfer_points: int = 50_000
+    selection_metric: str = "corrected"
+
+
+@dataclass(frozen=True)
+class PersonalizeConfig:
+    dataset: DatasetConfig = field(default_factory=DatasetConfig)
+    train: TrainConfig = field(default_factory=TrainConfig)
+    validation: ValidationConfig = field(default_factory=ValidationConfig)
+
+
 def _coerce(name: str, value, default):
+    if name == "dataset.seed":
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            raise ValueError(f"{name} must be an integer or null, got {value!r}")
+        return value
     if isinstance(default, bool):
         if not isinstance(value, bool):
             raise ValueError(f"{name} must be true or false, got {value!r}")
@@ -219,3 +284,71 @@ def load_texture_config(path=None) -> TextureConfig:
     if path is None:
         return validate_texture(TextureConfig())
     return validate_texture(_build(TextureConfig, yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}))
+
+
+def validate_personalize(cfg: PersonalizeConfig) -> PersonalizeConfig:
+    data, train, val = cfg.dataset, cfg.train, cfg.validation
+    for name, value, least in (("dataset.random_views", data.random_views, 0),
+                               ("dataset.render_size", data.render_size, 16),
+                               ("dataset.render_samples", data.render_samples, 1),
+                               ("dataset.surface_points", data.surface_points, 1),
+                               ("train.steps", train.steps, 1),
+                               ("train.batch_size", train.batch_size, 1),
+                               ("train.warmup_steps", train.warmup_steps, 0),
+                               ("train.lora_rank", train.lora_rank, 1),
+                               ("train.lora_alpha", train.lora_alpha, 1),
+                               ("train.points_per_sample", train.points_per_sample, 1),
+                               ("train.image_size", train.image_size, 16),
+                               ("train.crop_margin", train.crop_margin, 0),
+                               ("validation.every", val.every, 1),
+                               ("validation.num_steps", val.num_steps, 2),
+                               ("validation.octree_resolution", val.octree_resolution, 1),
+                               ("validation.num_chunks", val.num_chunks, 1),
+                               ("validation.chamfer_points", val.chamfer_points, 1)):
+        if value < least:
+            raise ValueError(f"{name} must be at least {least}, got {value}")
+    # 16 benchmark-style views plus the random ones are stored as three-digit file names.
+    if data.random_views + 16 > 1000:
+        raise ValueError(f"dataset.random_views must be at most 984, got {data.random_views}")
+    if not data.elevation_min <= data.elevation_max or not data.azimuth_min <= data.azimuth_max:
+        raise ValueError("dataset elevation and azimuth ranges must have min <= max")
+    if not 0 < data.distance_scale_min <= data.distance_scale_max:
+        raise ValueError("dataset.distance_scale_min must be positive and at most distance_scale_max")
+    if not 0 < data.camera_fov < 180:
+        raise ValueError(f"dataset.camera_fov must lie in (0, 180) degrees, got {data.camera_fov}")
+    if train.warmup_steps >= train.steps:
+        raise ValueError(f"train.warmup_steps must be below train.steps, got {train.warmup_steps} and {train.steps}")
+    if not train.learning_rate > 0 or not train.adam_eps > 0 or train.weight_decay < 0 or not train.grad_clip_norm > 0:
+        raise ValueError("train.learning_rate, adam_eps and grad_clip_norm must be positive and weight_decay "
+                         "non-negative")
+    if not (0 <= train.adam_beta1 < 1 and 0 <= train.adam_beta2 < 1):
+        raise ValueError("train.adam_beta1 and adam_beta2 must lie in [0, 1)")
+    if not 0 < train.lr_factor_min <= train.lr_factor_max or not 0 < train.lr_factor_start:
+        raise ValueError("train learning-rate factors must be positive with lr_factor_min <= lr_factor_max")
+    if not train.pad_ratio >= 1:
+        raise ValueError(f"train.pad_ratio must be at least 1, got {train.pad_ratio}")
+    if train.steps % val.every:
+        raise ValueError(f"train.steps ({train.steps}) must be a multiple of validation.every ({val.every}), so "
+                         f"that the last step is validated")
+    if val.selection_metric not in SELECTION_METRICS:
+        raise ValueError(f"validation.selection_metric must be one of {list(SELECTION_METRICS)}, "
+                         f"got {val.selection_metric!r}")
+    return cfg
+
+
+def load_personalize_config(path=None, overrides: Optional[dict] = None) -> PersonalizeConfig:
+    """The default personalize settings, overridden by the YAML file at `path` and then by `overrides`
+    (a mapping in the same sectioned form)."""
+    values = {} if path is None else (yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {})
+    if not isinstance(values, dict):
+        raise ValueError(f"{path} must hold a mapping of sections")
+    for section, entries in (overrides or {}).items():
+        current = values.get(section) or {}
+        if not isinstance(current, dict):
+            raise ValueError(f"{section} must be a mapping")
+        values[section] = {**current, **entries}
+    return validate_personalize(_build(PersonalizeConfig, values))
+
+
+def personalize_to_dict(cfg: PersonalizeConfig) -> dict:
+    return dataclasses.asdict(cfg)

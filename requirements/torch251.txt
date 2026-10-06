@@ -1,5 +1,6 @@
 # PyTorch 2.5.1 with CUDA 12.4, Python 3.10.
-# diso, custom_rasterizer and the mesh painter are compiled against the installed torch: scripts/build_extensions.sh
+# diso, torch-cluster, custom_rasterizer and the mesh painter are compiled against the installed torch:
+# scripts/build_extensions.sh
 --extra-index-url https://download.pytorch.org/whl/cu124
 torch==2.5.1
 torchvision==0.20.1

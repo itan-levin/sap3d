@@ -4,9 +4,16 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  # CUDA 12.4 compiler, needed only to build diso for torch 2.5.1
+  # CUDA 12.4 compiler and the library headers torch's CUDA headers include, needed to build the
+  # compiled extensions (scripts/build_extensions.sh) for torch 2.5.1
   - cuda-nvcc=12.4
   - cuda-cudart-dev=12.4
   - cuda-version=12.4
+  - libcublas-dev
+  - libcusparse-dev
+  - libcusolver-dev
+  - libcurand-dev
+  - cuda-nvrtc-dev
+  - cuda-profiler-api
   - pip:
     - -r requirements/torch251.txt

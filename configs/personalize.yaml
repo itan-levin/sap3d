@@ -1,0 +1,42 @@
+# Personalize-stage settings with their default values (sap3d-personalize --dump-config prints the resolved ones).
+dataset:
+  random_views: 250          # random renders added to the 16 benchmark-style views
+  render_size: 512           # pixels per side of each random render
+  render_samples: 128        # Cycles samples, or EEVEE anti-aliasing samples
+  camera_fov: 49.1           # horizontal field of view, degrees
+  elevation_min: -5.0        # camera elevation range, degrees
+  elevation_max: 40.0
+  azimuth_min: -180.0        # camera azimuth range, degrees
+  azimuth_max: 180.0
+  distance_scale_min: 1.0    # camera distance as a multiple of the closest distance that frames the whole object
+  distance_scale_max: 1.5
+  surface_points: 200000     # area-weighted surface points stored per asset
+  seed: null                 # null draws from operating-system entropy; an integer makes the draws repeatable
+train:
+  steps: 5000
+  batch_size: 4
+  learning_rate: 7.0e-6
+  adam_beta1: 0.9
+  adam_beta2: 0.99
+  adam_eps: 1.0e-6
+  weight_decay: 0.01
+  warmup_steps: 100          # linear warm-up from lr_factor_start to lr_factor_max, then cosine to lr_factor_min
+  lr_factor_start: 0.1
+  lr_factor_max: 1.0
+  lr_factor_min: 0.5
+  grad_clip_norm: 1.0
+  seed: 0                    # model construction (the adapter's initialization), training noise, sample order
+  lora_rank: 16
+  lora_alpha: 16             # adapter scaling is lora_alpha / lora_rank
+  points_per_sample: 81920   # surface points encoded per training sample, drawn afresh from the stored ones
+  image_size: 518            # conditioning image side, pixels
+  crop_margin: 5             # pixels kept around the render's alpha box
+  pad_ratio: 1.15            # square canvas side as a multiple of the crop's longest side
+validation:
+  every: 500                 # steps between saved, validated adapters
+  num_steps: 50              # sampling steps of the validation generation
+  guidance_scale: 5.0
+  octree_resolution: 384
+  num_chunks: 8000
+  chamfer_points: 50000      # points per side of the Chamfer distance
+  selection_metric: corrected  # Chamfer definition that selects the step: corrected or legacy

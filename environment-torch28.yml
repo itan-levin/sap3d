@@ -4,9 +4,16 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  # CUDA 12.8 compiler, needed only to build diso for torch 2.8
+  # CUDA 12.8 compiler and the library headers torch's CUDA headers include, needed to build the
+  # compiled extensions (scripts/build_extensions.sh) for torch 2.8
   - cuda-nvcc=12.8
   - cuda-cudart-dev=12.8
   - cuda-version=12.8
+  - libcublas-dev
+  - libcusparse-dev
+  - libcusolver-dev
+  - libcurand-dev
+  - cuda-nvrtc-dev
+  - cuda-profiler-api
   - pip:
     - -r requirements/torch28.txt
