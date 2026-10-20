@@ -28,7 +28,7 @@ Linux, an NVIDIA GPU, conda and a system C++ compiler (gcc and g++). The conda e
 pins Python 3.10, PyTorch 2.8.0 and the CUDA 12.8 compiler.
 
 ```bash
-git clone <this repository> sap3d && cd sap3d
+git clone https://github.com/itan-levin/sap3d.git && cd sap3d
 
 conda env create -f environment.yml
 conda activate sap3d
