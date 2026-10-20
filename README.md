@@ -1,5 +1,7 @@
 # SAP3D
 
+[Project page](https://itan-levin.github.io/sap3d-page/)
+
 SAP3D edits an existing 3D asset from an edited 2D view of it, on top of Tencent's
 [Hunyuan3D-2.1](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1) shape model. A low-rank adapter is first
 fitted to the asset, so that the generator reproduces it; during editing the adapter is applied at a different
@@ -205,7 +207,14 @@ CPU only; run from the repository root.
 
 ## Citation
 
-To be added.
+```bibtex
+@article{levin2026sap3d,
+  title   = {SAP3D: Spatially Adaptive Personalization for Consistent 3D Generative Editing},
+  author  = {Levin, Itan and Tevet, Guy and Bermano, Amit H.},
+  journal = {arXiv preprint arXiv:XXXX.XXXXX},
+  year    = {2026}
+}
+```
 
 ## License
 
